@@ -1,17 +1,25 @@
 #!/usr/bin/env node
+import * as acorn from "acorn";
+import * as walk from "acorn-walk";
 import chalk from "chalk";
 import fs from "fs-extra";
 import _ from "lodash";
+import * as cp from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import * as acorn from "acorn";
-import * as walk from "acorn-walk";
-import * as cp from "node:child_process";
+import { Project } from "ts-morph";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const wd = "./";
+const project = new Project();
+project.addSourceFilesAtPaths("**/*.ts");
+const sourceFile = project.getSourceFileOrThrow("collaboardCanvas.ts");
+const classes = sourceFile.getClasses();
+const interfaces = sourceFile.getInterfaces();
+
+console.log(sourceFile.getExportDeclarations(), classes, interfaces);
 
 function readFile(file) {
   return fs.readFileSync(path.resolve(wd, file)).toString("utf-8");
@@ -545,8 +553,8 @@ function generateIndexFile(dir, files, ext) {
   console.log(chalk.bold(`created ${path.relative(wd, file)}`));
 }
 
-function resolveDest(dir, file, { type, overwriteExisitingFiles, ext }) {
-  return overwriteExisitingFiles
+function resolveDest(dir, file, { type, overwriteExistingFiles, ext }) {
+  return overwriteExistingFiles
     ? ext === "ts"
       ? path.resolve(dir, file.replace(".js", ".ts"))
       : false
@@ -555,50 +563,26 @@ function resolveDest(dir, file, { type, overwriteExisitingFiles, ext }) {
     : (name) => path.resolve(dir, `${name}.${ext}`);
 }
 
-export function listFiles() {
-  const paths = [];
-  classDirs.forEach((klsDir) => {
-    const dir = path.resolve(srcDir, klsDir);
-    fs.readdirSync(dir).map((file) => {
-      paths.push({
-        dir,
-        file,
-        type: "class",
-      });
-    });
-  });
-
-  fs.readdirSync(mixinsDir).map((file) => {
-    paths.push({
-      dir: mixinsDir,
-      file,
-      type: "mixin",
-    });
-  });
-
-  const additionalFiles = fs
-    .readdirSync(srcDir)
-    .filter((file) => !fs.lstatSync(path.resolve(srcDir, file)).isDirectory());
-  additionalFiles.map((file) => {
-    paths.push({
-      dir: srcDir,
+export function listFiles(dir) {
+  console.log({ dir });
+  return fs.readdirSync(dir).map((file) => {
+    return {
+      dir,
       file,
       type: "class",
-    });
+    };
   });
-
-  return paths;
 }
 
 export function transform(options = {}) {
   options = _.defaults(options, {
-    overwriteExisitingFiles: true,
+    overwriteExistingFiles: true,
     ext: "js",
     createIndex: true,
     useExports: true,
+    dir: "./",
   });
-
-  const result = listFiles()
+  const result = listFiles(options.dir)
     .filter(({ dir, file }) => {
       return !options.files || options.files.length === 0
         ? true
@@ -631,7 +615,7 @@ export function transform(options = {}) {
   }, {});
   options.createIndex &&
     _.map(dirs, (files, dir) => generateIndexFile(dir, files, options.ext));
-  options.overwriteExisitingFiles &&
+  options.overwriteExistingFiles &&
     options.ext === "ts" &&
     files.forEach(({ dir, file }) =>
       fs.removeSync(path.resolve(dir, file.replace(".ts", ".js")))
