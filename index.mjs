@@ -112,7 +112,7 @@ function createChoiceData(type, file) {
 }
 
 async function selectFileToTransform() {
-  const files = _.map(listFiles(), ({ dir, file }) =>
+  const files = _.map(listFiles(process.cwd()), ({ dir, file }) =>
     createChoiceData(
       path.relative(path.resolve(wd, "src"), dir).replaceAll("\\", "/"),
       file
@@ -163,6 +163,7 @@ program
   .option("-v, --verbose", "verbose logging", true)
   .option("--no-verbose", "verbose logging")
   .option("-a, --all", "transform all files", false)
+  .option("--dir", "directory to search file in", process.cwd())
   .option(
     "-d, --diff <branch>",
     "compare against given branch (default: master) and transform all files with diff"
@@ -176,6 +177,7 @@ program
       verbose,
       all,
       diff: gitRef,
+      dir,
     } = {}) => {
       let files = [];
       if (gitRef) {
@@ -186,12 +188,13 @@ program
         files = await selectFileToTransform();
       }
       transformFiles({
-        overwriteExisitingFiles: overwrite,
+        overwriteExistingFiles: overwrite,
         useExports: exports,
         createIndex: index,
         ext: typescript ? "ts" : "js",
         verbose,
         files,
+        dir,
       });
     }
   );
